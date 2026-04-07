@@ -41,7 +41,8 @@ namespace FoodsBasketGame
                 return;
             }
 
-            transform.position += Vector3.down * (definition.moveSpeed * Time.deltaTime);
+            float speedMultiplier = controller.CurrentFallSpeedMultiplier;
+            transform.position += Vector3.down * (definition.moveSpeed * speedMultiplier * Time.deltaTime);
 
             if (transform.position.y <= controller.CatchLineY)
             {

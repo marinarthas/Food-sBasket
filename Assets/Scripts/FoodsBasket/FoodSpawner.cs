@@ -6,7 +6,12 @@ namespace FoodsBasketGame
     public class FoodSpawner : MonoBehaviour
     {
         [SerializeField] private List<FoodDefinition> foods = new List<FoodDefinition>();
-        [SerializeField] private float spawnInterval = 0.9f;
+        [Header("Spawn Pacing")]
+        [SerializeField] private float earlySpawnInterval = 2.2f;
+        [SerializeField] private float midSpawnInterval = 1.4f;
+        [SerializeField] private float baseLateSpawnInterval = 1.1f;
+        [SerializeField] private float lateSpawnIntervalReductionPerWave = 0.18f;
+        [SerializeField] private float minimumLateSpawnInterval = 0.45f;
         [SerializeField] private float spawnHalfWidth = 5.2f;
         [SerializeField] private float spawnY = 6.4f;
 
@@ -31,14 +36,37 @@ namespace FoodsBasketGame
             }
 
             timer += Time.deltaTime;
+            float currentSpawnInterval = GetCurrentSpawnInterval();
 
-            if (timer < spawnInterval)
+            if (timer < currentSpawnInterval)
             {
                 return;
             }
 
-            timer = 0f;
+            timer -= currentSpawnInterval;
             SpawnFood();
+        }
+
+        private float GetCurrentSpawnInterval()
+        {
+            if (controller == null)
+            {
+                return earlySpawnInterval;
+            }
+
+            float elapsed = controller.ElapsedTime;
+            if (elapsed < 30f)
+            {
+                return earlySpawnInterval;
+            }
+
+            if (elapsed < 120f)
+            {
+                return midSpawnInterval;
+            }
+
+            int lateWaves = Mathf.FloorToInt((elapsed - 120f) / 120f);
+            return Mathf.Max(minimumLateSpawnInterval, baseLateSpawnInterval - (lateWaves * lateSpawnIntervalReductionPerWave));
         }
 
         private void SpawnFood()
