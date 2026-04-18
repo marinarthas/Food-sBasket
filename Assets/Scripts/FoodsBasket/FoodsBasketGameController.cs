@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
@@ -30,6 +31,7 @@ namespace FoodsBasketGame
         [SerializeField] private Text highScoresText;
         [SerializeField] private float despawnY = -7.4f;
         [SerializeField] private int startingHearts = 5;
+        [SerializeField] private bool recenterMetersAfterHeartLoss = true;
         [Header("Audio")]
         [SerializeField] private AudioClip backgroundLoop;
         [SerializeField] [Range(0f, 1f)] private float backgroundVolume = 0.5f;
@@ -45,6 +47,7 @@ namespace FoodsBasketGame
         private bool resumeAfterInfoPanel;
         private AudioSource backgroundAudioSource;
         private AudioSource soundEffectAudioSource;
+        private bool hasSubscribedToNutritionEvents;
 
         private const string HighScoreKey = "FoodsBasket.TopTimes";
         private const int MaxHighScores = 5;
@@ -70,6 +73,16 @@ namespace FoodsBasketGame
             }
         }
 
+        private void OnEnable()
+        {
+            SubscribeToNutritionEvents();
+        }
+
+        private void OnDisable()
+        {
+            UnsubscribeFromNutritionEvents();
+        }
+
         private void Start()
         {
             LoadAudioClipsFromResources();
@@ -87,6 +100,8 @@ namespace FoodsBasketGame
             {
                 basketZone.Initialize(this);
             }
+
+            SubscribeToNutritionEvents();
 
             if (startPanel != null)
             {
@@ -217,7 +232,18 @@ namespace FoodsBasketGame
         {
             foodSpawner = spawner;
             basketZone = basket;
-            nutritionMeterSystem = nutrition;
+
+            if (!ReferenceEquals(nutritionMeterSystem, nutrition))
+            {
+                UnsubscribeFromNutritionEvents();
+                nutritionMeterSystem = nutrition;
+                SubscribeToNutritionEvents();
+            }
+            else
+            {
+                nutritionMeterSystem = nutrition;
+            }
+
             heartImages = hearts;
             timerLabel = timerDisplay;
             bestTimeLabel = bestTimeDisplay;
@@ -427,10 +453,47 @@ namespace FoodsBasketGame
             heartsRemaining = Mathf.Max(0, heartsRemaining - 1);
             RefreshHearts();
 
+            if (recenterMetersAfterHeartLoss && nutritionMeterSystem != null)
+            {
+                nutritionMeterSystem.RecenterMeters();
+            }
+
             if (heartsRemaining <= 0)
             {
                 GameOver();
             }
+        }
+
+        private void HandleMeterDepleted(NutrientMeterType depletedMeter)
+        {
+            if (!IsPlaying)
+            {
+                return;
+            }
+
+            LoseHeart();
+        }
+
+        private void SubscribeToNutritionEvents()
+        {
+            if (nutritionMeterSystem == null || hasSubscribedToNutritionEvents)
+            {
+                return;
+            }
+
+            nutritionMeterSystem.MeterDepleted += HandleMeterDepleted;
+            hasSubscribedToNutritionEvents = true;
+        }
+
+        private void UnsubscribeFromNutritionEvents()
+        {
+            if (nutritionMeterSystem == null || !hasSubscribedToNutritionEvents)
+            {
+                return;
+            }
+
+            nutritionMeterSystem.MeterDepleted -= HandleMeterDepleted;
+            hasSubscribedToNutritionEvents = false;
         }
 
         private void RefreshHearts()
@@ -589,7 +652,7 @@ namespace FoodsBasketGame
         {
             if (infoPanelText != null)
             {
-                infoPanelText.text = "Everything in your basket counts! Balance your Fat, Sugar, and Carbs as they fall faster and faster from the sky. Watch your bars closely: each nutrient has a unique digestion rate. Don't let them overflow! How long can you keep the balance?";
+                infoPanelText.text = "Everything in your basket counts! Keep glucose, fats, and carbs near the middle as they slowly drain over time. Let the right foods fall in so the bars do not drop too low, but do not let them spike and overflow either. How long can you keep the balance?";
             }
         }
 

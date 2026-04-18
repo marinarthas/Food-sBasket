@@ -1,13 +1,25 @@
 using UnityEngine;
 using UnityEngine.UI;
+using System;
 
 namespace FoodsBasketGame
 {
+    public enum NutrientMeterType
+    {
+        Glucose,
+        Fats,
+        Carbs,
+    }
+
     public class NutritionMeterSystem : MonoBehaviour
     {
         [Header("Rules")]
         [SerializeField] private float maxValue = 5f;
+        [SerializeField] private float capacityMultiplier = 2f;
+        [SerializeField] [Range(0f, 1f)] private float baselineFillNormalized = 0.5f;
         [SerializeField] private float decayPerSecond = 0.35f;
+        [SerializeField] [Range(0.05f, 1f)] private float decayScale = 0.25f;
+        [SerializeField] private float depletionThreshold = 0.01f;
 
         [Header("UI")]
         [SerializeField] private Slider glucoseSlider;
@@ -18,33 +30,63 @@ namespace FoodsBasketGame
         private float fats;
         private float carbs;
 
+        public event Action<NutrientMeterType> MeterDepleted;
+
+        public float Glucose => glucose;
+        public float Fats => fats;
+        public float Carbs => carbs;
+        public float MaxValue => maxValue * Mathf.Max(1f, capacityMultiplier);
+        public float BaselineValue => MaxValue * Mathf.Clamp01(baselineFillNormalized);
+        public float EffectiveDecayPerSecond => Mathf.Max(0f, decayPerSecond * decayScale);
+
+        private void Awake()
+        {
+            if (glucose <= 0f && fats <= 0f && carbs <= 0f)
+            {
+                ResetMeters();
+            }
+            else
+            {
+                RefreshUI();
+            }
+        }
+
         private void Update()
         {
-            glucose = Mathf.MoveTowards(glucose, 0f, decayPerSecond * Time.deltaTime);
-            fats = Mathf.MoveTowards(fats, 0f, decayPerSecond * Time.deltaTime);
-            carbs = Mathf.MoveTowards(carbs, 0f, decayPerSecond * Time.deltaTime);
+            float decayAmount = EffectiveDecayPerSecond * Time.deltaTime;
+            glucose = Mathf.MoveTowards(glucose, 0f, decayAmount);
+            fats = Mathf.MoveTowards(fats, 0f, decayAmount);
+            carbs = Mathf.MoveTowards(carbs, 0f, decayAmount);
             RefreshUI();
+            CheckForDepletion();
         }
 
         public bool AddFood(FoodDefinition food)
         {
+            float effectiveMax = MaxValue;
             float nextGlucose = glucose + food.glucosePoints;
             float nextFats = fats + food.fatsPoints;
             float nextCarbs = carbs + food.carbsPoints;
-            bool overflowed = nextGlucose > maxValue || nextFats > maxValue || nextCarbs > maxValue;
+            bool overflowed = nextGlucose > effectiveMax || nextFats > effectiveMax || nextCarbs > effectiveMax;
 
-            glucose = Mathf.Clamp(nextGlucose, 0f, maxValue);
-            fats = Mathf.Clamp(nextFats, 0f, maxValue);
-            carbs = Mathf.Clamp(nextCarbs, 0f, maxValue);
+            glucose = Mathf.Clamp(nextGlucose, 0f, effectiveMax);
+            fats = Mathf.Clamp(nextFats, 0f, effectiveMax);
+            carbs = Mathf.Clamp(nextCarbs, 0f, effectiveMax);
             RefreshUI();
             return overflowed;
         }
 
         public void ResetMeters()
         {
-            glucose = 0f;
-            fats = 0f;
-            carbs = 0f;
+            RecenterMeters();
+        }
+
+        public void RecenterMeters()
+        {
+            float baseline = BaselineValue;
+            glucose = baseline;
+            fats = baseline;
+            carbs = baseline;
             RefreshUI();
         }
 
@@ -54,6 +96,26 @@ namespace FoodsBasketGame
             fatsSlider = fatsMeter;
             carbsSlider = carbsMeter;
             RefreshUI();
+        }
+
+        private void CheckForDepletion()
+        {
+            if (glucose <= depletionThreshold)
+            {
+                MeterDepleted?.Invoke(NutrientMeterType.Glucose);
+                return;
+            }
+
+            if (fats <= depletionThreshold)
+            {
+                MeterDepleted?.Invoke(NutrientMeterType.Fats);
+                return;
+            }
+
+            if (carbs <= depletionThreshold)
+            {
+                MeterDepleted?.Invoke(NutrientMeterType.Carbs);
+            }
         }
 
         private void RefreshUI()
@@ -71,7 +133,7 @@ namespace FoodsBasketGame
             }
 
             slider.minValue = 0f;
-            slider.maxValue = maxValue;
+            slider.maxValue = MaxValue;
             slider.value = value;
         }
     }

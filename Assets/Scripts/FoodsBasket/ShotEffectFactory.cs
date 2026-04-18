@@ -10,7 +10,10 @@ namespace FoodsBasketGame
             effectObject.transform.position = position;
 
             ParticleSystem particleSystem = effectObject.AddComponent<ParticleSystem>();
+            particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
             ParticleSystem.MainModule main = particleSystem.main;
+            main.playOnAwake = false;
             main.duration = 0.35f;
             main.startLifetime = new ParticleSystem.MinMaxCurve(0.2f, 0.35f);
             main.startSpeed = new ParticleSystem.MinMaxCurve(1.5f, 2.8f);
